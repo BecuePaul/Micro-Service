@@ -1,0 +1,100 @@
+version: '3.8'
+
+services:
+  product-db:
+    image: postgres:13
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: productdb
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d productdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - microcommerce-net
+
+  customer-db:
+    image: postgres:13
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_DB: customerdb
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d customerdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - microcommerce-net
+
+  order-db:
+    image: postgres:13
+    ports:
+      - "5435:5432"
+    environment:
+      POSTGRES_DB: orderdb
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d orderdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - microcommerce-net
+
+  product-service:
+    build: ./product-service
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://product-db:5432/productdb
+      - SPRING_DATASOURCE_USERNAME=user
+      - SPRING_DATASOURCE_PASSWORD=password
+    depends_on:
+      product-db:
+        condition: service_healthy
+    networks:
+      - microcommerce-net
+
+  customer-service:
+    build: ./customer-service
+    ports:
+      - "8082:8082"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://customer-db:5432/customerdb
+      - SPRING_DATASOURCE_USERNAME=user
+      - SPRING_DATASOURCE_PASSWORD=password
+    depends_on:
+      customer-db:
+        condition: service_healthy
+    networks:
+      - microcommerce-net
+
+  order-service:
+    build: ./order-service
+    ports:
+      - "8083:8083"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://order-db:5432/orderdb
+      - SPRING_DATASOURCE_USERNAME=user
+      - SPRING_DATASOURCE_PASSWORD=password
+      - customer.service.url=http://customer-service:8082/api/customers
+      - product.service.url=http://product-service:8081/api/products
+    depends_on:
+      order-db:
+        condition: service_healthy
+      product-service:
+        condition: service_started
+    networks:
+      - microcommerce-net
+
+networks:
+  microcommerce-net:
+    driver: bridge
