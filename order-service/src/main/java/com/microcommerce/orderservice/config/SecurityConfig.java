@@ -24,7 +24,7 @@ public class SecurityConfig {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/api/orders/**").permitAll()
+                        .requestMatchers("/api/orders/**").authenticated()
                         .requestMatchers("/h2-console/**").permitAll() // Allow H2 console access
                         .anyRequest().authenticated()
                 )

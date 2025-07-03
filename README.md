@@ -61,7 +61,7 @@ curl -u admin:password -X POST http://localhost:8083/api/orders -H "Content-Type
 
 ### 4. Get the Order
 ```bash
-curl http://localhost:8083/api/orders/1
+curl -u admin:password http://localhost:8083/api/orders/1
 ```
 
 ## Stopping the Application
