@@ -1,12 +1,16 @@
 package com.microcommerce.orderservice.service;
 
+import com.microcommerce.orderservice.config.rabbitmq.RabbitMQConfig;
 import com.microcommerce.orderservice.model.Order;
 import com.microcommerce.orderservice.model.OrderItem;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.microcommerce.orderservice.dto.OrderDTO;
+import com.microcommerce.orderservice.dto.OrderItemDTO;
 import com.microcommerce.orderservice.model.ProductDTO;
 import com.microcommerce.orderservice.repository.OrderRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
@@ -28,6 +32,7 @@ public class OrderServiceImpl implements OrderService {
 
     private final OrderRepository orderRepository;
     private final WebClient.Builder webClientBuilder;
+    private final RabbitTemplate rabbitTemplate;
 
     @Value("${customer.service.url}")
     private String customerServiceUrl;
@@ -62,11 +67,12 @@ public class OrderServiceImpl implements OrderService {
                     .retrieve()
                     .bodyToMono(String.class)
                     .block(); // block() for simplicity in this demo
-        } catch (WebClientResponseException.NotFound e) {
-            throw new IllegalArgumentException("Customer with id " + orderRequest.getCustomerId() + " not found.");
         } catch (WebClientResponseException e) {
             log.error("Error validating customer: {}, status code: {}", e.getResponseBodyAsString(), e.getStatusCode());
-            throw new IllegalStateException("Error during customer validation: " + e.getMessage());
+            if (e.getStatusCode().is4xxClientError()) {
+                throw new IllegalArgumentException("Customer with id " + orderRequest.getCustomerId() + " not found.", e);
+            }
+            throw new IllegalStateException("Error during customer validation: " + e.getMessage(), e);
         }
 
 
@@ -96,16 +102,27 @@ public class OrderServiceImpl implements OrderService {
                 } else {
                     throw new IllegalArgumentException("Product with id " + requestedItem.getProductId() + " not found or returned null.");
                 }
-            } catch (WebClientResponseException.NotFound e) {
-                throw new IllegalArgumentException("Product with id " + requestedItem.getProductId() + " not found.");
             } catch (WebClientResponseException e) {
                 log.error("Error validating product: {}, status code: {}", e.getResponseBodyAsString(), e.getStatusCode());
-                throw new IllegalStateException("Error during product validation: " + e.getMessage());
+                if (e.getStatusCode().is4xxClientError()) {
+                    throw new IllegalArgumentException("Product with id " + requestedItem.getProductId() + " not found.", e);
+                }
+                throw new IllegalStateException("Error during product validation: " + e.getMessage(), e);
             }
         }
 
         newOrder.setOrderItems(newOrderItems);
 
-        return orderRepository.save(newOrder);
+        Order savedOrder = orderRepository.save(newOrder);
+
+        // Create DTO to send to RabbitMQ
+        List<OrderItemDTO> orderItemDTOs = savedOrder.getOrderItems().stream()
+                .map(item -> new OrderItemDTO(item.getProductId(), item.getQuantity()))
+                .toList();
+        OrderDTO orderDTO = new OrderDTO(savedOrder.getId(), savedOrder.getCustomerId(), orderItemDTOs);
+
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_NAME, RabbitMQConfig.ROUTING_KEY, orderDTO);
+
+        return savedOrder;
     }
 }

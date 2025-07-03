@@ -42,4 +42,11 @@ public class ProductServiceImpl implements ProductService {
     public void deleteProduct(Long id) {
         productRepository.deleteById(id);
     }
+
+    @Override
+    public void updateStock(Long productId, Integer quantity) {
+        Product product = productRepository.findById(productId).orElseThrow(() -> new RuntimeException("Product not found"));
+        product.setStock(product.getStock() - quantity);
+        productRepository.save(product);
+    }
 }
