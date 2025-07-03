@@ -92,6 +92,8 @@ services:
         condition: service_healthy
       product-service:
         condition: service_started
+      customer-service:
+        condition: service_started
     networks:
       - microcommerce-net
 
