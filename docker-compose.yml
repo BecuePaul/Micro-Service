@@ -113,13 +113,11 @@ services:
       - order-service
 
   frontend:
-    image: nginx:latest
+    build:
+      context: ./frontend-test-ui
     container_name: frontend-test-ui
     ports:
       - "8088:80"
-    volumes:
-      - ./frontend-test-ui:/usr/share/nginx/html
-      - ./frontend-test-ui/nginx.conf:/etc/nginx/conf.d/default.conf
     networks:
       - microcommerce-net
     depends_on:
